@@ -1,3 +1,4 @@
+import asyncio
 import os
 import os.path
 from typing import Optional
@@ -32,6 +33,13 @@ async def lifespan(app: FastAPI):
     yield
 
     ftp_process.kill()
+
+    for i in range(100):
+        if not ftp_process.is_alive():
+            break
+        await asyncio.sleep(0.1)
+
+    ftp_process.terminate()
 
 app = FastAPI(lifespan=lifespan)
 
