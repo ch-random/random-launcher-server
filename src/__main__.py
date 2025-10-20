@@ -2,7 +2,7 @@ import asyncio
 import os
 import os.path
 from typing import Optional
-from multiprocessing import Process, Pipe
+from multiprocessing import Process
 
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
