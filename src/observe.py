@@ -5,6 +5,7 @@ import shutil
 import json
 import datetime
 import time
+import uuid
 from zipfile import ZipFile
 
 import threading
@@ -56,12 +57,59 @@ class ContentsHandler(RegexMatchingEventHandler):
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.processing = {}
 
+        self.uuids = None
+
         self._sleep_dur = 3
         self._shutdown = False
 
     def shutdown(self):
         self._shutdown = True
         self.executor.shutdown()
+
+    def get_uuid(self, name):
+        uuid_path = os.path.join(self.contents_dir, ".uuids.json")
+        uuid_backup_path = os.path.join(self.contents_dir, ".uuids.json.backup")
+
+        if self.uuids is None:
+            # try to load
+            try:
+                with open(uuid_path, mode="rb") as f:
+                    self.uuids = json.load(f)
+            except:
+                # try to load from backup
+                try:
+                    with open(uuid_backup_path, mode="rb") as f:
+                        self.uuids = json.load(f)
+                except:
+                    # fallback
+                    self.uuids = {}
+
+        result = self.uuids.get(name, None)
+
+        if result is None:
+            # new content
+            while result is None or result in self.uuids.values():
+                # これが無限ループになる場合それは世界の法則が崩壊したときなので気にせず実装
+                result = str(uuid.uuid4())
+
+            self.uuids[name] = result
+
+            try:
+                shutil.copy(uuid_path, uuid_backup_path)
+            except:
+                # TODO: show warning
+                pass
+
+            try:
+                with open(uuid_path, mode="w") as f:
+                    json.dump(self.uuids, f, indent=2)
+            except:
+                # TODO: show warning
+                pass
+
+        print(result)
+
+        return result
 
     def sync_content_recv(self):
         with self.lock:
@@ -82,6 +130,7 @@ class ContentsHandler(RegexMatchingEventHandler):
                     if zf.getinfo("manifest.json"):
                         with zf.open("manifest.json", mode="r") as f:
                             meta = json.load(f)
+                        meta["id"] = self.get_uuid(meta["name"])
                         meta["last_modified"] = datetime.datetime.now()
                         content = Content.parse_obj(meta)
                     else:

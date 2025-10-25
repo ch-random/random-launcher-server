@@ -17,7 +17,7 @@ __all__ = [
 ]
 
 class Content(BaseModel):
-    #id: str # 要る?
+    id: str
     author: Optional[str] = None
     name: str
     display_name: Optional[str] = None
