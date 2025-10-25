@@ -1,12 +1,16 @@
 import signal
 import os
 import os.path
+import time
 from typing import Optional
 from multiprocessing import Process, Pipe
 
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
 from pyftpdlib.servers import FTPServer
+
+import glob
+from watchdog.events import FileCreatedEvent
 
 import fastapi
 from fastapi import FastAPI
@@ -59,6 +63,7 @@ def start_observer(conn: Pipe):
     target_dir = os.path.normpath(os.path.join(contents_dir, "../testsrc"))
     print("start observe for", target_dir)
     handler = ContentsHandler(contents_dir, conn)
+    handler.set_delay(0)
     observer = CustomObserver()
     observer.schedule(handler, target_dir, recursive=False)
 
@@ -68,8 +73,16 @@ def start_observer(conn: Pipe):
     signal.signal(signal.SIGTERM, on_exit)
     signal.signal(signal.SIGINT, on_exit)
 
+    for path in glob.glob(os.path.join(target_dir, "*.zip")):
+        print(path)
+        ev = FileCreatedEvent(path)
+        for emitter in observer.emitters:
+            emitter.queue_event(ev)
+
     observer.start()
     try:
+        time.sleep(3)
+        handler.set_delay(3)
         observer.join()
         print("obs stop")
     finally:

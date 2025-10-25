@@ -59,8 +59,11 @@ class ContentsHandler(RegexMatchingEventHandler):
 
         self.uuids = None
 
-        self._sleep_dur = 3
+        self._sleep_dur = 0.0
         self._shutdown = False
+
+    def set_delay(self, duration: float = 0.0):
+        self._sleep_dur = duration
 
     def shutdown(self):
         self._shutdown = True
