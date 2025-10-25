@@ -124,7 +124,7 @@ class ContentsHandler(RegexMatchingEventHandler):
                 except:
                     pass
 
-    def sync_content(self, src, dest):
+    def sync_content(self, src, dest, modified_time):
         if dest is not None:
             try:
                 content_path = os.path.normpath(os.path.join(self.contents_dir, os.path.basename(dest)))
@@ -134,7 +134,7 @@ class ContentsHandler(RegexMatchingEventHandler):
                         with zf.open("manifest.json", mode="r") as f:
                             meta = json.load(f)
                         meta["id"] = self.get_uuid(meta["name"])
-                        meta["last_modified"] = datetime.datetime.now()
+                        meta["last_modified"] = modified_time.astimezone(datetime.timezone.utc)
                         content = Content.parse_obj(meta)
                     else:
                         return
@@ -161,11 +161,13 @@ class ContentsHandler(RegexMatchingEventHandler):
 
     def check_modify_finished(self, src, dest, timestamp):
         print("check_modify_finished", src, dest)
+        delay = 0.0
         if dest is not None:
             for i in range(self._sleep_dur * 10):
                 if self._shutdown:
                     return
                 time.sleep(0.1)
+                delay += 0.1
 
             if dest not in self.processing or self.processing[dest] != timestamp:
                 # something changed
@@ -183,7 +185,8 @@ class ContentsHandler(RegexMatchingEventHandler):
                 return
 
         if not self._shutdown:
-            self.sync_content(src, dest)
+            tz = datetime.timezone(datetime.timedelta(seconds=time.timezone))
+            self.sync_content(src, dest, datetime.datetime.fromtimestamp(timestamp, tz=tz) + datetime.timedelta(seconds=delay))
 
     def dispatch(self, event):
         if event.event_type == "nothing":
