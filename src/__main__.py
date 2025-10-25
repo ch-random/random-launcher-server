@@ -1,8 +1,8 @@
-import asyncio
+import signal
 import os
 import os.path
 from typing import Optional
-from multiprocessing import Process
+from multiprocessing import Process, Pipe
 
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
@@ -12,7 +12,8 @@ import fastapi
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from .api import api
+from .api import api, content_manager
+from .observe import CustomObserver, ContentsHandler
 
 host = ""
 
@@ -26,26 +27,53 @@ except FileExistsError:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Pipe for fastapi and observer to communicate with each other
+    (conn_fastapi, conn_observer) = Pipe(duplex=True)
+
+    content_manager.set_connection(conn_fastapi)
+
     ftp_process = Process(target=start_ftpserver)
+    obs_process = Process(target=start_observer, args=(conn_observer,))
 
     ftp_process.start()
+    obs_process.start()
     
     yield
 
+    conn_fastapi.close()
+    conn_observer.close()
+
     ftp_process.kill()
+    obs_process.kill()
 
-    for i in range(100):
-        if not ftp_process.is_alive():
-            break
-        await asyncio.sleep(0.1)
-
+    ftp_process.join(3)
     ftp_process.terminate()
+    obs_process.join(3)
+    obs_process.terminate()
 
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(api)
 
-ftp_process = None
+def start_observer(conn: Pipe):
+    target_dir = os.path.normpath(os.path.join(contents_dir, "../testsrc"))
+    print("start observe for", target_dir)
+    handler = ContentsHandler(contents_dir, conn)
+    observer = CustomObserver()
+    observer.schedule(handler, target_dir, recursive=False)
+
+    def on_exit(signum, frame):
+        observer.stop()
+
+    signal.signal(signal.SIGTERM, on_exit)
+    signal.signal(signal.SIGINT, on_exit)
+
+    observer.start()
+    try:
+        observer.join()
+        print("obs stop")
+    finally:
+        observer.stop()
 
 def create_ftpserver():
     # https://pyftpdlib.readthedocs.io/en/latest/tutorial.html#a-base-ftp-server
@@ -80,7 +108,15 @@ def create_ftpserver():
 
 def start_ftpserver():
     server = create_ftpserver()
-    server.serve_forever()
+
+    def on_exit(signum, frame):
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, on_exit)
+    signal.signal(signal.SIGINT, on_exit)
+
+    server.serve_forever(handle_exit=True)
+    print("ftp stop")
 
 if __name__ == "__main__":
     import argparse

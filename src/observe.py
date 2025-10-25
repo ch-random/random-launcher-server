@@ -1,0 +1,194 @@
+import os
+import re
+import shutil
+
+import json
+import datetime
+import time
+from zipfile import ZipFile
+
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Pipe, Lock, Event
+
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEvent, FileSystemEventHandler, RegexMatchingEventHandler
+
+from .abc import *
+from .content import Content, ContentSource, ContentList
+
+class FileSystemNothingEvent(FileSystemEvent):
+    event_type = "nothing"
+    def __init__(self):
+        super().__init__("")
+
+class CustomObserver(Observer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.kill_interval = Event()
+        self.thread = None
+
+    def start_interval(self):
+        nothing_ev = FileSystemNothingEvent()
+        while self.kill_interval.wait(timeout=1) is not True:
+            for emitter in self.emitters:
+                emitter.queue_event(nothing_ev)
+
+    def on_thread_start(self):
+        super().on_thread_start()
+        self.thread = threading.Thread(target=self.start_interval)
+        self.thread.start()
+
+    def on_thread_end(self):
+        if self.thread is not None:
+            self.kill_interval.set()
+            self.thread.join(10)
+        super().on_thread_end()
+
+class ContentsHandler(RegexMatchingEventHandler):
+    def __init__(self, contents_dir: str, conn: Pipe, *, max_workers : int = 2):
+        super().__init__(regexes=[r".*\.zip$",])
+
+        self.contents_dir = contents_dir
+        self.conn = conn
+        self.lock = Lock()
+
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.processing = {}
+
+        self._sleep_dur = 3
+        self._shutdown = False
+
+    def shutdown(self):
+        self._shutdown = True
+        self.executor.shutdown()
+
+    def sync_content_recv(self):
+        with self.lock:
+            while self.conn.poll(0):
+                path = self.conn.recv()
+                try:
+                    print("wa", path)
+                    os.remove(path)
+                except:
+                    pass
+
+    def sync_content(self, src, dest):
+        if dest is not None:
+            try:
+                content_path = os.path.normpath(os.path.join(self.contents_dir, os.path.basename(dest)))
+                shutil.copy(dest, content_path)
+                with ZipFile(content_path) as zf:
+                    if zf.getinfo("manifest.json"):
+                        with zf.open("manifest.json", mode="r") as f:
+                            meta = json.load(f)
+                        meta["last_modified"] = datetime.datetime.now()
+                        content = Content.parse_obj(meta)
+                    else:
+                        return
+            except Exception as e:
+                print(e)
+                return
+
+            csrc = ContentSource(path=content_path, content=content)
+
+            print(csrc)
+
+            self.conn.send(csrc)
+
+        if src is not None and src != dest:
+            prev_path = os.path.normpath(os.path.join(self.contents_dir, os.path.basename(src)))
+            try:
+                print("prev", prev_path)
+                self.conn.send(ContentSource(path=prev_path, content=None))
+                os.remove(prev_path)
+            except:
+                pass
+
+        self.sync_content_recv()
+
+    def check_modify_finished(self, src, dest, timestamp):
+        print("check_modify_finished", src, dest)
+        if dest is not None:
+            for i in range(self._sleep_dur * 10):
+                if self._shutdown:
+                    return
+                time.sleep(0.1)
+
+            if dest not in self.processing or self.processing[dest] != timestamp:
+                # something changed
+                return
+
+            try:
+                current = os.stat(dest).st_mtime
+            except FileNotFoundError:
+                return
+
+            print(timestamp, current)
+
+            if timestamp != current:
+                # something implicitly changed
+                return
+
+        if not self._shutdown:
+            self.sync_content(src, dest)
+
+    def dispatch(self, event):
+        if event.event_type == "nothing":
+            self.on_nothing(event)
+        else:
+            super().dispatch(event)
+
+    def on_nothing(self, event):
+        # called on interval
+        self.executor.submit(self.sync_content_recv)
+
+    def on_created(self, event):
+        if event.is_directory:
+            return
+
+        try:
+            timestamp = os.stat(event.src_path).st_mtime
+        except FileNotFoundError:
+            return
+
+        self.processing[event.src_path] = timestamp
+
+        self.executor.submit(self.check_modify_finished, None, event.src_path, timestamp)
+
+    def on_moved(self, event):
+        if event.is_directory:
+            return
+
+        try:
+            timestamp = os.stat(event.dest_path).st_mtime
+        except FileNotFoundError:
+            return
+
+        self.processing[event.dest_path] = timestamp
+
+        self.executor.submit(self.check_modify_finished, event.src_path, event.dest_path, timestamp)
+
+    def on_deleted(self, event):
+        if event.is_directory:
+            return
+
+        timestamp = datetime.datetime.now().timestamp
+
+        self.processing[event.src_path] = timestamp
+
+        self.executor.submit(self.check_modify_finished, event.src_path, None, timestamp)
+
+    def on_modified(self, event):
+        if event.is_directory:
+            return
+
+        try:
+            timestamp = os.stat(event.src_path).st_mtime
+        except FileNotFoundError:
+            return
+
+        self.processing[event.src_path] = timestamp
+
+        self.executor.submit(self.check_modify_finished, event.src_path, event.src_path, timestamp)
+
