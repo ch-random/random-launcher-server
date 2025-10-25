@@ -125,28 +125,33 @@ class ContentsHandler(RegexMatchingEventHandler):
                     pass
 
     def sync_content(self, src, dest, modified_time):
-        if dest is not None:
-            try:
-                content_path = os.path.normpath(os.path.join(self.contents_dir, os.path.basename(dest)))
-                shutil.copy(dest, content_path)
-                with ZipFile(content_path) as zf:
-                    if zf.getinfo("manifest.json"):
-                        with zf.open("manifest.json", mode="r") as f:
-                            meta = json.load(f)
-                        meta["id"] = self.get_uuid(meta["name"])
-                        meta["last_modified"] = modified_time.astimezone(datetime.timezone.utc)
-                        content = Content.parse_obj(meta)
-                    else:
-                        return
-            except Exception as e:
-                print(e)
-                return
+        with self.lock:
+            print("sync", src, dest)
+            if dest is not None:
+                try:
+                    content_path = os.path.normpath(os.path.join(self.contents_dir, os.path.basename(dest)))
+                    shutil.copy(dest, content_path)
+                    with ZipFile(content_path) as zf:
+                        if zf.getinfo("manifest.json"):
+                            with zf.open("manifest.json", mode="r") as f:
+                                meta = json.load(f)
+                            meta["id"] = self.get_uuid(meta["name"])
+                            meta["last_modified"] = modified_time.astimezone(datetime.timezone.utc)
+                            content = Content.parse_obj(meta)
+                        else:
+                            return
+                    final_path = os.path.normpath(os.path.join(self.contents_dir, f"{meta["id"]}.zip"))
+                    print(content_path, final_path)
+                    shutil.move(content_path, final_path)
+                except Exception as e:
+                    print(e)
+                    return
 
-            csrc = ContentSource(path=final_path, orig_path=content_path, content=content)
+                csrc = ContentSource(path=final_path, orig_path=content_path, content=content)
 
-            print(csrc)
+                print(csrc)
 
-            self.conn.send(csrc)
+                self.conn.send(csrc)
 
         if src is not None and src != dest:
             prev_path = os.path.normpath(os.path.join(self.contents_dir, os.path.basename(src)))
