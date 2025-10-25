@@ -35,8 +35,9 @@ class Content(BaseModel):
 
 @dataclasses.dataclass
 class ContentSource:
-    path: str
-    content: Content = None
+    path: Optional[str]
+    orig_path: str
+    content: Optional[Content] = None
 
 class ContentList:
     def __init__(self, contents: list = None):
@@ -88,18 +89,28 @@ class ContentListSafe:
             if not completed:
                 self.target.contents.append(src)
         else:
-            self.remove_content(src.path)
+            print("remove")
+            removed = self.remove_content(src)
+            if src.path is None:
+                for c in removed:
+                    if c.path is not None:
+                        paths.append(c.path)
 
         return paths
 
-    def remove_content(self, path: str):
+    def remove_content(self, src: ContentSource):
+        removed = []
+
         if not self.locked:
             raise RuntimeError("only use after locked")
 
         total = len(self.target.contents)
         for i in range(total-1, -1, -1):
-            if self.target.contents[i].path == path:
-                self.target.contents.pop(i)
+            print(self.target.contents[i], src)
+            if self.target.contents[i].path == src.path or self.target.contents[i].orig_path == src.orig_path:
+                removed.append(self.target.contents.pop(i))
+
+        return removed
 
     def __repr__(self):
         if self.locked:

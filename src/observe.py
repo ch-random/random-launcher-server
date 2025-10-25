@@ -142,7 +142,7 @@ class ContentsHandler(RegexMatchingEventHandler):
                 print(e)
                 return
 
-            csrc = ContentSource(path=content_path, content=content)
+            csrc = ContentSource(path=final_path, orig_path=content_path, content=content)
 
             print(csrc)
 
@@ -152,8 +152,7 @@ class ContentsHandler(RegexMatchingEventHandler):
             prev_path = os.path.normpath(os.path.join(self.contents_dir, os.path.basename(src)))
             try:
                 print("prev", prev_path)
-                self.conn.send(ContentSource(path=prev_path, content=None))
-                os.remove(prev_path)
+                self.conn.send(ContentSource(path=None, orig_path=prev_path, content=None))
             except:
                 pass
 
@@ -228,7 +227,7 @@ class ContentsHandler(RegexMatchingEventHandler):
         if event.is_directory:
             return
 
-        timestamp = datetime.datetime.now().timestamp
+        timestamp = datetime.datetime.now(tz=datetime.timezone.utc).timestamp()
 
         self.processing[event.src_path] = timestamp
 
