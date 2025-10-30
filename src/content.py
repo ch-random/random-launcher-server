@@ -33,6 +33,10 @@ class Content(BaseModel):
 
     last_modified: datetime.datetime
 
+class ContentRemoved(BaseModel):
+    id: str
+    last_modified: datetime.datetime
+
 @dataclasses.dataclass
 class ContentSource:
     path: Optional[str]
@@ -46,6 +50,7 @@ class ContentList:
             self.contents = [*contents]
         else:
             self.contents = []
+        self.removed = []
 
     def use(self):
         return ContentListSafe(target=self)
@@ -63,6 +68,13 @@ class ContentListSafe:
     def __exit__(self, exc_type, exc_value, traceback):
         self.locked = False
         self.target.lock.release()
+
+    @property
+    def removed(self):
+        if not self.locked:
+            raise RuntimeError("only use after locked")
+
+        return self.target.removed
 
     def handle_content(self, src: ContentSource) -> list[str]:
         paths = []
@@ -88,11 +100,20 @@ class ContentListSafe:
                         self.target.contents.pop(i)
             if not completed:
                 self.target.contents.append(src)
+
+            removed_total = len(self.target.removed)
+            for i in range(removed_total-1, -1, -1):
+                target = self.target.removed[i]
+                if target.id == src.content.id:
+                    self.target.removed.pop(i)
         else:
             print("remove")
             removed = self.remove_content(src)
-            if src.path is None:
-                for c in removed:
+            for c in removed:
+                if not any([r.id == c.content.id for r in self.target.removed]):
+                    self.target.removed.append(
+                        ContentRemoved(id=c.content.id, last_modified=datetime.datetime.now(tz=datetime.timezone.utc)))
+                if src.path is None:
                     if c.path is not None:
                         paths.append(c.path)
 

@@ -92,9 +92,15 @@ async def updates(since: datetime.datetime, platform: Optional[Platform] = None,
     """
     since = since.replace(tzinfo=datetime.timezone.utc)
     with contents.use() as c:
-        return [
-            csrc.content for csrc in c
-            if platform is None or platform in csrc.content.supported_platforms
-            if csrc.content.last_modified >= since
-        ]
+        return {
+            "updated": [
+                csrc.content for csrc in c
+                if platform is None or platform in csrc.content.supported_platforms
+                if csrc.content.last_modified >= since
+            ],
+            "removed": [
+                r for r in c.removed
+                if r.last_modified >= since
+            ]
+        }
 
