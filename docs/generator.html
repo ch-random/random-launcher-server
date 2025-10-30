@@ -137,6 +137,15 @@
           </p>
           <input name="thumbnail" type="text">
         </section>
+        <section>
+          <p>
+            コントローラ使用可
+          </p>
+          <label>
+            <input name="pad" type="checkbox">
+            使用可能ならチェック
+          </label>
+        </section>
         <section class="platforms">
           <p>対応プラットフォーム</p>
           <section>
@@ -252,6 +261,8 @@
                 }
               }
 
+              form["pad"].checked = data["pad"] || false;
+
               let supported_platforms = [];
               for (let platform of ["windows", "macos"]) {
                 if ((data["supported_platforms"] || []).includes(platform)) {
@@ -327,6 +338,7 @@
           author: data.get("author"),
           content_type: data.get("content_type"),
           category: data.get("category"),
+          pad: data.get("pad") == "on",
           supported_platforms: []
         };
 

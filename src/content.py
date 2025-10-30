@@ -26,6 +26,8 @@ class Content(BaseModel):
     description: Optional[str] = None
     thumbnail: Optional[str] = None # icon
 
+    pad: bool = False
+
     content_type: ContentType
     supported_platforms: list[Platform]
 
