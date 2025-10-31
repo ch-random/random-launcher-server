@@ -27,8 +27,10 @@ class Content(BaseModel):
     thumbnail: Optional[str] = None # icon
 
     pad: bool = False
+    esc_exit: bool = True
 
     content_type: ContentType
+    category: CategoryType = CategoryType.COMMON
     supported_platforms: list[Platform]
 
     action: Union[Action, dict[Platform, Action]]
