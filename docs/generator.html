@@ -139,12 +139,21 @@
         </section>
         <section>
           <p>
-            コントローラ使用可
+            オプション
           </p>
-          <label>
-            <input name="pad" type="checkbox">
-            使用可能ならチェック
-          </label>
+          <ul>
+            <li>
+              <label>
+                <input name="pad" type="checkbox">
+                コントローター使用可
+              </label>
+            </li>
+            <li>
+              <label>
+                <input name="esc_exit" type="checkbox">
+                Escキーによる強制終了を利用
+              </label>
+            </li>
         </section>
         <section class="platforms">
           <p>対応プラットフォーム</p>
@@ -262,6 +271,7 @@
               }
 
               form["pad"].checked = data["pad"] || false;
+              form["esc_exit"].checked = data["esc_exit"] || true;
 
               let supported_platforms = [];
               for (let platform of ["windows", "macos"]) {
@@ -339,6 +349,7 @@
           content_type: data.get("content_type"),
           category: data.get("category"),
           pad: data.get("pad") == "on",
+          esc_exit: data.get("esc_exit") == "on",
           supported_platforms: []
         };
 
