@@ -14,6 +14,7 @@ from watchdog.events import FileCreatedEvent
 
 import fastapi
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .api import api, content_manager
@@ -58,6 +59,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(api)
+
+origins = [
+    "*"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def start_observer(conn: Pipe):
     target_dir = os.path.normpath(os.path.join(contents_dir, "../testsrc"))
@@ -143,4 +156,4 @@ if __name__ == "__main__":
 
     host = args.host if args.host else "127.0.0.1"
 
-    uvicorn.run(app, host=host, port=8000)
+    uvicorn.run(app, host=host, port=8080)
