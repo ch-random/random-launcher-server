@@ -17,6 +17,7 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler, RegexMatchi
 
 from .abc import *
 from .content import Content, ContentSource, ContentList
+from .settings import settings
 
 class FileSystemNothingEvent(FileSystemEvent):
     event_type = "nothing"
@@ -196,7 +197,11 @@ class ContentsHandler(RegexMatchingEventHandler):
         if event.event_type == "nothing":
             self.on_nothing(event)
         else:
-            super().dispatch(event)
+            if not settings.CHECK_MUST_EXISTS or os.path.exists(os.path.join(self.contents_dir, ".MUST-EXISTS")):
+                super().dispatch(event)
+            elif settings.CHECK_MUST_EXISTS:
+                # target dir is lost!
+                print("target dir is lost")
 
     def on_nothing(self, event):
         # called on interval

@@ -16,21 +16,10 @@ import fastapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .api import api, content_manager
 from .observe import CustomObserver, ContentsHandler
-
-class Settings(BaseSettings):
-    API_HOST: str = "127.0.0.1"
-    API_PORT: int = 8080
-    FTP_PORT: int = 2121
-
-    TARGET_DIR: str = None
-
-    model_config = SettingsConfigDict(env_file=os.path.normpath(os.path.join(__file__, "../../.env.local")))
-
-settings = Settings()
+from .settings import settings
 
 contents_dir = os.path.normpath(os.path.join(__file__, "../../contents"))
 print("contents dir:", contents_dir)
