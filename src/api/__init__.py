@@ -72,16 +72,20 @@ async def get_content_thumbnail(content_id: str, contents: ContentList = Depends
         if src is None:
             raise HTTPException(status_code=404, detail="content not found")
 
-        if src.content.thumbnail is None:
+        if not src.content.thumbnail:
             raise HTTPException(status_code=404, detail="no thumbnail")
 
-        with zipfile.ZipFile(src.path) as zf:
-            with zf.open(src.content.thumbnail) as f:
-                data = f.read()
+        try:
+            with zipfile.ZipFile(src.path) as zf:
+                with zf.open(src.content.thumbnail) as f:
+                    data = f.read()
+        except KeyError:
+            raise HTTPException(status_code=404, detail="no thumbnail")
+        except:
+            raise HTTPException(status_code=500)
 
     async def iterdata():
-        for b in data:
-            yield b
+        yield data
 
     return StreamingResponse(iterdata(), media_type="image/*")
 
