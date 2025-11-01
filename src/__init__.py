@@ -16,7 +16,7 @@ import fastapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .api import api, content_manager
 from .observe import CustomObserver, ContentsHandler
