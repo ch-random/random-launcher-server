@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     API_PORT: int = 8080
     FTP_PORT: int = 2121
 
+    TARGET_DIR: str = None
+
     model_config = SettingsConfigDict(env_file=os.path.normpath(os.path.join(__file__, "../../.env.local")))
 
 settings = Settings()
@@ -81,7 +83,11 @@ app.add_middleware(
 )
 
 def start_observer(conn: Pipe):
-    target_dir = os.path.normpath(os.path.join(contents_dir, "../testsrc"))
+    target_dir = settings.TARGET_DIR
+
+    if target_dir is None:
+        raise RuntimeError("TARGET_DIR not specified")
+
     print("start observe for", target_dir)
     handler = ContentsHandler(contents_dir, conn)
     handler.set_delay(0)
