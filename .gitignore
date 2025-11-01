@@ -1,2 +1,5 @@
 **/__pycache__/**
 /contents/**
+
+.env*
+!.env.local.example
