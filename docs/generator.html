@@ -159,17 +159,7 @@
           <p>対応プラットフォーム</p>
           <section>
             <label>
-              <input name="action-dependency" type="radio" value="independent" checked required>
-              プラットフォーム共通
-            </label>
-            <section>
-              <label>実行ファイルのパス/URL</label>
-              <input type="text" name="path" required>
-            </section>
-          </section>
-          <section>
-            <label>
-              <input name="action-dependency" type="radio" value="dependent" required>
+              <input name="action-dependency" type="radio" value="dependent" checked required>
               プラットフォーム個別
             </label>
             <section>
@@ -191,6 +181,16 @@
                 <label>実行ファイルのパス/URL</label>
                 <input type="text" name="macos.path" required>
               </section>
+            </section>
+          </section>
+          <section>
+            <label>
+              <input name="action-dependency" type="radio" value="independent" required>
+              プラットフォーム共通
+            </label>
+            <section>
+              <label>実行ファイルのパス/URL</label>
+              <input type="text" name="path" required>
             </section>
           </section>
         </section>
