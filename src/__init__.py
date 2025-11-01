@@ -16,11 +16,19 @@ import fastapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from pydantic_settings import BaseSettings
 
 from .api import api, content_manager
 from .observe import CustomObserver, ContentsHandler
 
-host = ""
+class Settings(BaseSettings):
+    API_HOST: str = "127.0.0.1"
+    API_PORT: int = 8080
+    FTP_PORT: int = 2121
+
+    model_config = SettingsConfigDict(env_file=os.path.normpath(os.path.join(__file__, "../../.env.local")))
+
+settings = Settings()
 
 contents_dir = os.path.normpath(os.path.join(__file__, "../../contents"))
 print("contents dir:", contents_dir)
@@ -123,7 +131,7 @@ def create_ftpserver():
     #handler.passive_ports = range(60000, 65535)
 
     # Instantiate FTP server class and listen on all interfaces, port 21
-    address = (host, 2121)
+    address = (settings.API_HOST, settings.FTP_PORT)
     server = FTPServer(address, handler)
 
     # set a limit for connections
