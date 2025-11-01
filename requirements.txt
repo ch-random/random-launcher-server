@@ -1,4 +1,6 @@
 fastapi
+pydantic
+pydantic-settings
 uvicorn
 pyftpdlib
 watchdog
