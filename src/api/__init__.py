@@ -27,7 +27,7 @@ async def get_contents(platform: Optional[Platform] = None, contents: ContentLis
     (platformが指定されればそのプラットフォームに対応する)すべてのコンテンツのメタデータを返す
     """
     with contents.use() as c:
-        return [csrc.content for csrc in c if platform is None or platform in csrc.content.supported_platforms]
+        return [csrc.content for csrc in c if platform is None or len(csrc.content.supported_platforms) == 0 or platform in csrc.content.supported_platforms]
 
 @api.get("/content/{content_id}")
 async def get_content_meta(content_id: str, contents: ContentList = Depends(content_manager.on_fastapi_depends)):
@@ -95,7 +95,7 @@ async def updates(since: datetime.datetime, platform: Optional[Platform] = None,
         return {
             "updated": [
                 csrc.content for csrc in c
-                if platform is None or platform in csrc.content.supported_platforms
+                if platform is None or len(csrc.content.supported_platforms) == 0 or platform in csrc.content.supported_platforms
                 if csrc.content.last_modified >= since
             ],
             "removed": [
