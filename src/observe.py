@@ -197,7 +197,7 @@ class ContentsHandler(RegexMatchingEventHandler):
         if event.event_type == "nothing":
             self.on_nothing(event)
         else:
-            if not settings.CHECK_MUST_EXISTS or os.path.exists(os.path.join(self.contents_dir, ".MUST-EXISTS")):
+            if not settings.CHECK_MUST_EXISTS or os.path.exists(os.path.join(settings.TARGET_DIR, ".MUST-EXISTS")):
                 super().dispatch(event)
             elif settings.CHECK_MUST_EXISTS:
                 # target dir is lost!
