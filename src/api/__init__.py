@@ -26,8 +26,12 @@ async def get_contents(platform: Optional[Platform] = None, contents: ContentLis
     """
     (platformが指定されればそのプラットフォームに対応する)すべてのコンテンツのメタデータを返す
     """
+
+    # on linux, windows apps can be run on wine
+    plats = None if platform is None else (platform,) if platform != Platform.LINUX else (platform, Platform.WINDOWS)
+
     with contents.use() as c:
-        return [csrc.content for csrc in c if platform is None or len(csrc.content.supported_platforms) == 0 or platform in csrc.content.supported_platforms]
+        return [csrc.content for csrc in c if plats is None or len(csrc.content.supported_platforms) == 0 or any([plat in csrc.content.supported_platforms for plat in plats])]
 
 @api.get("/content/{content_id}")
 async def get_content_meta(content_id: str, contents: ContentList = Depends(content_manager.on_fastapi_depends)):
@@ -95,11 +99,13 @@ async def updates(since: datetime.datetime, platform: Optional[Platform] = None,
     since以降に更新/削除されたコンテンツを返す
     """
     since = since.replace(tzinfo=datetime.timezone.utc)
+    plats = None if platform is None else (platform,) if platform != Platform.LINUX else (platform, Platform.WINDOWS)
+
     with contents.use() as c:
         return {
             "updated": [
                 csrc.content for csrc in c
-                if platform is None or len(csrc.content.supported_platforms) == 0 or platform in csrc.content.supported_platforms
+                if plats is None or len(csrc.content.supported_platforms) == 0 or any([plat in csrc.content.supported_platforms for plat in plats])
                 if csrc.content.last_modified >= since
             ],
             "removed": [
