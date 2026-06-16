@@ -182,6 +182,16 @@
                 <input type="text" name="macos.path" required>
               </section>
             </section>
+            <section>
+              <label>
+                <input type="checkbox" name="linux-supported">
+                Linux
+              </label>
+              <section>
+                <label>実行ファイルのパス/URL</label>
+                <input type="text" name="linux.path" required>
+              </section>
+            </section>
           </section>
           <section>
             <label>
@@ -370,7 +380,7 @@
         } else { // platform dependent
           result["action"] = {};
 
-          for (let platform of ["windows", "macos"]) {
+          for (let platform of ["windows", "macos", "linux"]) {
             if (data.get(`${platform}-supported`)) {
               result["supported_platforms"].push(platform);
               result["action"][platform] = {
