@@ -612,8 +612,8 @@
         return result;
       }
 
-      document.querySelector("main > button[name=\"open-manifest\"]").addEventListener("click", open_manifest);
-      document.querySelector("main > button > label[for=\"open-content-dir\"]").addEventListener("click", open_content_dir)
+      document.querySelector("main button[name=\"open-manifest\"]").addEventListener("click", open_manifest);
+      document.querySelector("main button > label[for=\"open-content-dir\"]").addEventListener("click", open_content_dir)
 
 
       for (let sec of document.querySelectorAll("section.platforms section:has(> label:first-child > input:where([type=\"checkbox\"], [type=\"radio\"]))")) {
