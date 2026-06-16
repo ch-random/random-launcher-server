@@ -75,12 +75,18 @@
       div[name="filepicker"][hidden] {
         display: none;
       }
-      div[name="filepicker"] > ul {
+      div[name="filepicker"] > div:first-child {
+        display: flex;
+        justify-content: space-between;
+      }
+      div[name="filepicker"] > select {
+        width: 100%;
         height: 75%;
+        font-size: inherit;
         overflow-y: scroll;
       }
-      div[name="filepicker"] > ul > li {
-        list-style: none;
+      div:not(:where(:has(+ p > span:nth-child(2)):has(+ p + select > option:not(:first-child):checked), :has(+ p > span:first-child:last-child):has(+ p + select > option:checked))) > button[name="select"] {
+        display: none;
       }
     </style>
   </head>
@@ -88,8 +94,11 @@
     <main>
       <h1>manifest.json ジェネレータ</h1>
       <button name="open-manifest">既存のmanifest.jsonを読み込む...</button>
-      <button><label for="open-content-dir">作品のディレクトリを選択</label></button>
-      <input id="open-content-dir" name="open-content-dir" type="file" webkitdirectory multiple hidden>
+      <section>
+        <button><label for="open-content-dir">作品のディレクトリを選択</label></button>
+        <input id="open-content-dir" name="open-content-dir" type="file" webkitdirectory multiple hidden>
+        <span>※作品ファイルを入れたフォルダを選択すると、ファイルの選択機能が使えます</span>
+      </section>
       <form>
         <section>
           <p>
@@ -251,10 +260,12 @@
       <div name="filepicker" hidden>
         <div>
           <span>ファイルを選択</span>
+          <span name="fname" hidden></span>
+          <button name="select">このファイル/フォルダを指定</button>
           <button>X</button>
         </div>
         <p></p>
-        <ul></ul>
+        <select multiple></select>
       </div>
     </main>
     <script>
@@ -508,9 +519,15 @@
         let result = new Promise((_resolve, _reject)=>{
 
           let aborter = new AbortController();
+          let selectedEntry = content_tree;
 
-          function resolve(res) {
+          function resolve(entry) {
             filepicker.hidden = true;
+            let res = {path: entry.name, handle: entry.handle, file: entry.file};
+            while (entry.parent != content_tree) {
+              entry = entry.parent;
+              res.path = entry.name + "/" + res.path;
+            }
             aborter.abort();
             _resolve(res);
           }
@@ -522,6 +539,13 @@
           }
 
           function on_click_wrapper(entry) {
+            return (ev)=>{
+              selectedEntry = entry;
+              filepicker.querySelector("&> div > span[name=\"fname\"]").innerText = (entry.kind == "directory" ? "📁" : "📄") + entry.name;
+            };
+          }
+
+          function on_dblclick_wrapper(entry) {
             return (ev)=>open_entry(entry);
           }
 
@@ -530,14 +554,12 @@
             filepicker.lastElementChild.replaceChildren();
 
             if (entry.kind == "file") {
-              let res = {path: entry.name, handle: entry.handle, file: entry.file};
-              while (entry.parent != content_tree) {
-                entry = entry.parent;
-                res.path = entry.name + "/" + res.path;
-              }
-              resolve(res);
+              resolve(entry);
               return;
             }
+
+            selectedEntry = entry;
+            filepicker.querySelector("&> div > span[name=\"fname\"]").innerText = (entry.kind == "directory" ? "📁" : "📄") + entry.name;
 
             dirp.replaceChildren();
             for (let direntry = entry; direntry != undefined; direntry = direntry.parent) {
@@ -545,28 +567,30 @@
               el.innerText = (direntry == content_tree ? "📁" : "") + direntry.name + "/";
               dirp.insertAdjacentElement("afterbegin", el);
               if (entry != direntry) {
-                el.addEventListener("click", on_click_wrapper(direntry), {signal: aborter.signal});
+                el.addEventListener("click", on_dblclick_wrapper(direntry), {signal: aborter.signal});
               }
             }
 
             if (entry.parent) {
-              let parent = document.createElement("li");
+              let parent = document.createElement("option");
               parent.innerText = "(前に戻る...)";
               filepicker.lastElementChild.appendChild(parent);
-              parent.addEventListener("click", on_click_wrapper(entry.parent), {signal: aborter.signal});
+              parent.addEventListener("dblclick", on_dblclick_wrapper(entry.parent), {signal: aborter.signal});
             }
 
             for (let [key, child] of entry.children.entries() || []) {
-              let newChild = document.createElement("li");
+              let newChild = document.createElement("option");
               newChild.innerText = (child.kind == "directory" ? "📁" : "📄") + key;
               filepicker.lastElementChild.appendChild(newChild);
               newChild.addEventListener("click", on_click_wrapper(child), {signal: aborter.signal});
+              newChild.addEventListener("dblclick", on_dblclick_wrapper(child), {signal: aborter.signal});
             }
           }
 
           function do_start() {
             filepicker.hidden = false;
-            filepicker.querySelector("&> div > button").addEventListener("click", (ev)=>reject(), {signal: aborter.signal, once: true});
+            filepicker.querySelector("&> div > button[name=\"select\"]").addEventListener("click", (ev)=>(selectedEntry != undefined ? resolve(selectedEntry) : undefined), {signal: aborter.signal, once: true});
+            filepicker.querySelector("&> div > button:last-child").addEventListener("click", (ev)=>reject(), {signal: aborter.signal, once: true});
             open_entry(content_tree);
           }
 
