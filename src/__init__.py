@@ -2,6 +2,7 @@ import signal
 import os
 import os.path
 import time
+import asyncio
 from typing import Optional
 from multiprocessing import Process, Pipe
 
@@ -29,6 +30,16 @@ try:
 except FileExistsError:
     pass
 
+
+async def pipe_cleaner():
+    while True:
+        try:
+            metas = content_manager.content_sync()
+            await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            break
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Pipe for fastapi and observer to communicate with each other
@@ -41,8 +52,18 @@ async def lifespan(app: FastAPI):
 
     ftp_process.start()
     obs_process.start()
-    
+
+    # run pipe cleaner
+    task = asyncio.create_task(pipe_cleaner())
+
     yield
+
+    task.cancel()
+
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
     conn_fastapi.close()
     conn_observer.close()
