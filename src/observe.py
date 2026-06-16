@@ -6,7 +6,7 @@ import json
 import datetime
 import time
 import uuid
-from zipfile import ZipFile
+from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -130,11 +130,19 @@ class ContentsHandler(RegexMatchingEventHandler):
             print("sync", src, dest)
             if dest is not None:
                 try:
+                    prefix = ""
                     content_path = os.path.normpath(os.path.join(self.contents_dir, os.path.basename(dest)))
                     shutil.copy(dest, content_path)
                     with ZipFile(content_path) as zf:
-                        if zf.getinfo("manifest.json"):
-                            with zf.open("manifest.json", mode="r") as f:
+                        try:
+                            prefix = os.path.commonpath([os.path.dirname(info.filename) for info in zf.infolist()])
+                            if prefix:
+                                prefix = prefix + "/"
+                        except:
+                            pass
+
+                        if zf.getinfo(prefix + "manifest.json"):
+                            with zf.open(prefix + "manifest.json", mode="r") as f:
                                 meta = json.load(f)
                             meta["id"] = self.get_uuid(meta["name"])
                             meta["last_modified"] = modified_time.astimezone(datetime.timezone.utc)
@@ -143,7 +151,18 @@ class ContentsHandler(RegexMatchingEventHandler):
                             return
                     final_path = os.path.normpath(os.path.join(self.contents_dir, f"{meta["id"]}.zip"))
                     print(content_path, final_path)
-                    shutil.move(content_path, final_path)
+
+                    if prefix != "":
+                        with ZipFile(content_path) as srczf, ZipFile(final_path, mode="w", compression=ZIP_DEFLATED) as dstzf:
+                            for info in srczf.infolist():
+                                targetname = os.path.relpath(info.filename, prefix)
+                                if info.is_dir():
+                                    dstzf.mkdir(targetname)
+                                with dstzf.open(ZipInfo(targetname, info.date_time), mode="w") as f:
+                                    f.write(srczf.read(info))
+                        os.remove(content_path)
+                    else:
+                        shutil.move(content_path, final_path)
                 except Exception as e:
                     print(e)
                     return
