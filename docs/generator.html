@@ -42,12 +42,54 @@
         color: white;
         background-color: #3366ff;
       }
+
+      input:has(+ button.picker) {
+        max-width: calc(100% - 5.5em);
+        margin-left: 0.5em;
+      }
+      input + button.picker {
+        width: 5em;
+        height: 2lh;
+        float: left;
+      }
+      input + button.picker::after {
+        content: "📂選択";
+      }
+
+      body:has(div[name="filepicker"]:not([hidden])) {
+        overflow: hidden;
+      }
+      div[name="filepicker"] {
+        display: inline-block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        padding-inline: max(1.5em, calc(50vw - 16em));
+        padding-block: 2.5rem;
+        background: white;
+        box-sizing: border-box;
+        user-select: none;
+      }
+      div[name="filepicker"][hidden] {
+        display: none;
+      }
+      div[name="filepicker"] > ul {
+        height: 75%;
+        overflow-y: scroll;
+      }
+      div[name="filepicker"] > ul > li {
+        list-style: none;
+      }
     </style>
   </head>
   <body>
     <main>
       <h1>manifest.json ジェネレータ</h1>
-      <button>既存のmanifest.jsonを読み込む...</button>
+      <button name="open-manifest">既存のmanifest.jsonを読み込む...</button>
+      <button><label for="open-content-dir">作品のディレクトリを選択</label></button>
+      <input id="open-content-dir" name="open-content-dir" type="file" webkitdirectory multiple hidden>
       <form>
         <section>
           <p>
@@ -135,7 +177,7 @@
           <p>
             サムネイル画像のパス
           </p>
-          <input name="thumbnail" type="text">
+          <input name="thumbnail" type="text" class="path">
         </section>
         <section>
           <p>
@@ -168,8 +210,8 @@
                 Windows
               </label>
               <section>
-                <label>実行ファイルのパス/URL</label>
-                <input type="text" name="windows.path" required>
+                <label>実行ファイルのパス</label>
+                <input type="text" name="windows.path" class="path" required>
               </section>
             </section>
             <section>
@@ -178,8 +220,8 @@
                 MacOS
               </label>
               <section>
-                <label>実行ファイルのパス/URL</label>
-                <input type="text" name="macos.path" required>
+                <label>実行ファイルのパス</label>
+                <input type="text" name="macos.path" class="path" required>
               </section>
             </section>
             <section>
@@ -188,8 +230,8 @@
                 Linux
               </label>
               <section>
-                <label>実行ファイルのパス/URL</label>
-                <input type="text" name="linux.path" required>
+                <label>実行ファイルのパス</label>
+                <input type="text" name="linux.path" class="path" required>
               </section>
             </section>
           </section>
@@ -200,14 +242,41 @@
             </label>
             <section>
               <label>実行ファイルのパス/URL</label>
-              <input type="text" name="path" required>
+              <input type="text" name="path" class="path" required>
             </section>
           </section>
         </section>
         <button type="submit">manifest.jsonを生成</button>
       </form>
+      <div name="filepicker" hidden>
+        <div>
+          <span>ファイルを選択</span>
+          <button>X</button>
+        </div>
+        <p></p>
+        <ul></ul>
+      </div>
     </main>
     <script>
+      var content_dir;
+      var content_tree = {name: undefined, kind: "directory"};
+      var filepicker = document.querySelector("div[name=\"filepicker\"]");
+
+      document.querySelectorAll(".path").forEach((el)=>{
+        console.log(el);
+        let pickerBtn = document.createElement("button");
+        pickerBtn.className = "picker";
+        el.after(pickerBtn);
+        pickerBtn.addEventListener("click", (ev)=>{
+          ev.preventDefault();
+          if (!el.disabled) {
+            showOriginalFilePicker().then((result)=>{
+              el.value = result.path;
+            });
+          }
+        });
+      });
+
       function open_manifest(e) {
         var wait;
         let result;
@@ -323,7 +392,204 @@
         });
       }
 
-      document.querySelector("main > button").addEventListener("click", open_manifest);
+      async function update_tree(entry) {
+        entry.children = new Map();
+        for await ([key, value] of entry.handle.entries()) {
+          entry.children.set(key, {name: value.name, kind: value.kind, handle: value, parent: entry});
+          if (value.kind == "directory") {
+            await update_tree(entry.children.get(key));
+          }
+        }
+        Array.from(entry.children.entries()).sort(([key1, value1], [key2, value2])=>(((value2.kind == "directory") ? 1 : 0) - ((value1.kind == "directory") ? 1 : 0)) || (key1.toLowerCase() > key2.toLowerCase() ? 1 : -1)).forEach(([key, value])=>{
+          entry.children.delete(key);
+          entry.children.set(key, value);
+        });
+      }
+
+      function open_content_dir(ev=undefined) {
+        return new Promise((resolve, reject)=>{
+          if (window.showDirectoryPicker) {
+            if (ev) {
+              ev.preventDefault();
+            }
+            window.showDirectoryPicker({mode: "readwrite"}).then((handle)=>{
+              content_dir = handle;
+              content_tree.name = handle.name;
+              content_tree.handle = handle;
+              update_tree(content_tree).then(()=>{
+                if (content_tree.children.get("manifest.json") && confirm("選択した作品フォルダ内にmanifest.jsonが見つかりました。これを読み込みますか?")) {
+                  open_manifest(content_tree.children.get("manifest.json").handle)
+                  resolve(false); // showOriginalFilePickerを続行させない
+                } else {
+                  resolve(true);
+                }
+              });
+            }).catch(()=>reject());
+          } else {
+            // input + webkitdirectory でフォールバックできるか?
+            let dirinput = document.querySelector("input[name=\"open-content-dir\"]");
+
+            if (dirinput?.webkitdirectory) {
+              // たぶんできる
+              let aborter = new AbortController();
+
+              dirinput.addEventListener("change", (ev)=>{
+                try {
+                  open_content_dir_files();
+                  if (content_tree.children.get("manifest.json") && confirm("選択した作品フォルダ内にmanifest.jsonが見つかりました。これを読み込みますか?")) {
+                    open_manifest(content_tree.children.get("manifest.json").file)
+                    resolve(false); // showOriginalFilePickerを続行させない
+                  } else {
+                    resolve(true);
+                  }
+                } catch {
+                  reject();
+                } finally {
+                  aborter.abort();
+                }
+              }, {signal: aborter.signal, once: true});
+
+              dirinput.addEventListener("cancel", (ev)=>{
+                reject();
+                aborter.abort();
+              }, {signal: aborter.signal, once: true});
+
+              dirinput.click();
+            } else {
+              if (ev) {
+                ev.preventDefault();
+              }
+              reject();
+              alert("お使いのブラウザでは対応していません");
+            }
+          }
+        });
+      }
+
+      function open_content_dir_files() {
+        let dirinput = document.querySelector("input[name=\"open-content-dir\"]");
+        content_tree.name = undefined;
+        content_tree.handle = undefined;
+        content_tree.children = new Map();
+        for (let file of dirinput.files) {
+          let pathes = file.webkitRelativePath.split("/");
+          if (content_tree.name != pathes[0]) {
+            content_tree.children.clear();
+            content_tree.handle = undefined;
+            content_tree.name = pathes[0];
+          }
+          for (let entry = content_tree, i = 1; i < pathes.length; i++) {
+            if (!entry.children.has(pathes[i])) {
+              entry.children.set(pathes[i], {name: pathes[i], kind: i + 1 < pathes.length ? "directory" : "file", parent: entry});
+            }
+            entry = entry.children.get(pathes[i]);
+            if (entry.kind == "directory" && entry.children == undefined) {
+              entry.children = new Map();
+            } else if (entry.kind == "file") {
+              entry.file = file;
+            }
+          }
+        }
+        function sortEntry(entry) {
+          for (let child of entry.children.values()) {
+            if (child.kind == "directory") {
+              sortEntry(child);
+            }
+          }
+          Array.from(entry.children.entries()).sort(([key1, value1], [key2, value2])=>(((value2.kind == "directory") ? 1 : 0) - ((value1.kind == "directory") ? 1 : 0)) || (key1.toLowerCase() > key2.toLowerCase() ? 1 : -1)).forEach(([key, value])=>{
+            entry.children.delete(key);
+            entry.children.set(key, value);
+          });
+        }
+        sortEntry(content_tree);
+      }
+
+      function showOriginalFilePicker() {
+        let result = new Promise((_resolve, _reject)=>{
+
+          let aborter = new AbortController();
+
+          function resolve(res) {
+            filepicker.hidden = true;
+            aborter.abort();
+            _resolve(res);
+          }
+
+          function reject() {
+            filepicker.hidden = true;
+            aborter.abort();
+            _reject();
+          }
+
+          function on_click_wrapper(entry) {
+            return (ev)=>open_entry(entry);
+          }
+
+          function open_entry(entry) {
+            let dirp = filepicker.querySelector("&> p");
+            filepicker.lastElementChild.replaceChildren();
+
+            if (entry.kind == "file") {
+              let res = {path: entry.name, handle: entry.handle, file: entry.file};
+              while (entry.parent != content_tree) {
+                entry = entry.parent;
+                res.path = entry.name + "/" + res.path;
+              }
+              resolve(res);
+              return;
+            }
+
+            dirp.replaceChildren();
+            for (let direntry = entry; direntry != undefined; direntry = direntry.parent) {
+              let el = document.createElement("span");
+              el.innerText = (direntry == content_tree ? "📁" : "") + direntry.name + "/";
+              dirp.insertAdjacentElement("afterbegin", el);
+              if (entry != direntry) {
+                el.addEventListener("click", on_click_wrapper(direntry), {signal: aborter.signal});
+              }
+            }
+
+            if (entry.parent) {
+              let parent = document.createElement("li");
+              parent.innerText = "(前に戻る...)";
+              filepicker.lastElementChild.appendChild(parent);
+              parent.addEventListener("click", on_click_wrapper(entry.parent), {signal: aborter.signal});
+            }
+
+            for (let [key, child] of entry.children.entries() || []) {
+              let newChild = document.createElement("li");
+              newChild.innerText = (child.kind == "directory" ? "📁" : "📄") + key;
+              filepicker.lastElementChild.appendChild(newChild);
+              newChild.addEventListener("click", on_click_wrapper(child), {signal: aborter.signal});
+            }
+          }
+
+          function do_start() {
+            filepicker.hidden = false;
+            filepicker.querySelector("&> div > button").addEventListener("click", (ev)=>reject(), {signal: aborter.signal, once: true});
+            open_entry(content_tree);
+          }
+
+          if (content_tree.name == undefined) {
+            alert("先に作品のディレクトリを選択してください");
+            open_content_dir().then((cont)=>{
+              if (cont) {
+                do_start();
+              } else {
+                // manifest.jsonが読み込まれた
+                reject();
+              }
+            }).catch(()=>reject());
+          } else {
+            do_start()
+          }
+        });
+
+        return result;
+      }
+
+      document.querySelector("main > button[name=\"open-manifest\"]").addEventListener("click", open_manifest);
+      document.querySelector("main > button > label[for=\"open-content-dir\"]").addEventListener("click", open_content_dir)
 
 
       for (let sec of document.querySelectorAll("section.platforms section:has(> label:first-child > input:where([type=\"checkbox\"], [type=\"radio\"]))")) {
@@ -340,6 +606,9 @@
           }
           children.forEach((el)=>{
             el.disabled = !e.target.checked || e.target.disabled;
+            if (el.nextElementSibling?.classList.contains("picker")) {
+              el.nextElementSibling.disabled = el.disabled;
+            }
             if (el.onchange) {
               el.onchange({target: el});
             }
@@ -392,14 +661,45 @@
 
         let blob;
         blob = new Blob([JSON.stringify(result, null, 2)], {type: "application/json"});
-        let anchor = document.createElement("a");
-        let url = URL.createObjectURL(blob);
-        anchor.download = "manifest.json";
-        anchor.href = url;
-        anchor.style.display = "none";
-        document.body.appendChild(anchor);
-        anchor.click();
-        window.addEventListener("pagehide", (e)=>{URL.revokeObjectURL(url);}, {once:true, passive:true});
+
+        if (content_tree.handle != undefined && confirm("作品のディレクトリ(フォルダ)内に直接書き込みますか? manifest.jsonがすでに存在している場合、上書きされます")) {
+          content_tree.handle.getFileHandle("manifest.json", {create: true}).then((handle)=>{
+            if (handle.createWritable != undefined) {
+              handle.createWritable().then((stream)=>{
+                stream.write(blob)
+                  .then(()=>{
+                    alert("書き込みに成功しました");
+                    ok = true;
+                  })
+                  .catch(()=>alert("書き込みに失敗しました"))
+                  .finally(()=>stream.close());
+              }).catch(()=>alert("ファイルを書き込み用に開けませんでした"));
+            } else {
+              // createWritableよりもcreateSyncAccessHandle + writeのほうが古めのブラウザでも対応しているものが多い
+              handle.createSyncAccessHandle().then((sync)=>{
+                blob.arrayBUffer().then((buffer)=>{
+                  sync.write(buffer);
+                  sync.flush();
+                  alert("書き込みに成功しました");
+                  ok = true;
+                })
+                .catch(()=>alert("データの準備に失敗しました"))
+                .finally(()=>sync.close());
+              }).catch(()=>alert("ファイルを書き込み用に開けませんでした"));
+            }
+          }).catch(()=>alert("ファイルを開けませんでした"));
+        }
+
+        else {
+          let anchor = document.createElement("a");
+          let url = URL.createObjectURL(blob);
+          anchor.download = "manifest.json";
+          anchor.href = url;
+          anchor.style.display = "none";
+          document.body.appendChild(anchor);
+          anchor.click();
+          window.addEventListener("pagehide", (e)=>{URL.revokeObjectURL(url);}, {once:true, passive:true});
+        }
       });
       window.addEventListener('beforeunload', (e)=>{
         try{
