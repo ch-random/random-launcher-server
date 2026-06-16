@@ -111,8 +111,6 @@ class ContentsHandler(RegexMatchingEventHandler):
                 # TODO: show warning
                 pass
 
-        print(result)
-
         return result
 
     def sync_content_recv(self):
@@ -120,14 +118,12 @@ class ContentsHandler(RegexMatchingEventHandler):
             while self.conn.poll(0):
                 path = self.conn.recv()
                 try:
-                    print("wa", path)
                     os.remove(path)
                 except:
                     pass
 
     def sync_content(self, src, dest, modified_time):
         with self.lock:
-            print("sync", src, dest)
             if dest is not None:
                 try:
                     prefix = ""
@@ -150,7 +146,6 @@ class ContentsHandler(RegexMatchingEventHandler):
                         else:
                             return
                     final_path = os.path.normpath(os.path.join(self.contents_dir, f"{meta["id"]}.zip"))
-                    print(content_path, final_path)
 
                     if prefix != "":
                         with ZipFile(content_path) as srczf, ZipFile(final_path, mode="w", compression=ZIP_DEFLATED) as dstzf:
@@ -169,14 +164,11 @@ class ContentsHandler(RegexMatchingEventHandler):
 
                 csrc = ContentSource(path=final_path, orig_path=content_path, content=content)
 
-                print(csrc)
-
                 self.conn.send(csrc)
 
         if src is not None and src != dest:
             prev_path = os.path.normpath(os.path.join(self.contents_dir, os.path.basename(src)))
             try:
-                print("prev", prev_path)
                 self.conn.send(ContentSource(path=None, orig_path=prev_path, content=None))
             except:
                 pass
@@ -184,7 +176,6 @@ class ContentsHandler(RegexMatchingEventHandler):
         self.sync_content_recv()
 
     def check_modify_finished(self, src, dest, timestamp):
-        print("check_modify_finished", src, dest)
         delay = 0.0
         if dest is not None:
             for i in range(self._sleep_dur * 10):
@@ -201,8 +192,6 @@ class ContentsHandler(RegexMatchingEventHandler):
                 current = os.stat(dest).st_mtime
             except FileNotFoundError:
                 return
-
-            print(timestamp, current)
 
             if timestamp != current:
                 # something implicitly changed

@@ -131,7 +131,6 @@ class ContentListSafe:
 
         total = len(self.target.contents)
         for i in range(total-1, -1, -1):
-            print(self.target.contents[i], src)
             if self.target.contents[i].path == src.path or self.target.contents[i].orig_path == src.orig_path:
                 removed.append(self.target.contents.pop(i))
 
@@ -193,7 +192,6 @@ class ContentManager:
                     csrc = self.conn.recv()
                     for path in c.handle_content(csrc):
                         self.conn.send(path)
-                print(c)
         except EOFError:
             # connection closed
             self.conn = None

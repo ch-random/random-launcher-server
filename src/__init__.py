@@ -111,7 +111,6 @@ def start_observer(conn: Pipe):
     signal.signal(signal.SIGINT, on_exit)
 
     for path in glob.glob(os.path.join(target_dir, "*.zip")):
-        print(path)
         ev = FileCreatedEvent(path)
         for emitter in observer.emitters:
             emitter.queue_event(ev)
