@@ -12,21 +12,29 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pipe, Lock, Event
 
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEvent, FileSystemEventHandler, RegexMatchingEventHandler
+from watchdog.observers.api import BaseObserver
+from watchdog.observers.polling import PollingEmitter, PollingObserver
+from watchdog.events import FileSystemEvent, RegexMatchingEventHandler
 
 from .abc import *
 from .content import Content, ContentSource, ContentList
 from .settings import settings
+
+class DirectoryNotFoundIgnoreEmitter(PollingEmitter):
+    def queue_events(self, timeout: float) -> None:
+        try:
+            super().queue_events(timeout)
+        except FileNotFoundError:
+            pass
 
 class FileSystemNothingEvent(FileSystemEvent):
     event_type = "nothing"
     def __init__(self):
         super().__init__("")
 
-class CustomObserver(Observer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class CustomObserver(PollingObserver):
+    def __init__(self, emitter_class, timeout=1):
+        BaseObserver.__init__(self, emitter_class, timeout=timeout)
         self.kill_interval = Event()
         self.thread = None
 

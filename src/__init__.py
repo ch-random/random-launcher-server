@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .api import api, content_manager
-from .observe import CustomObserver, ContentsHandler
+from .observe import DirectoryNotFoundIgnoreEmitter, CustomObserver, ContentsHandler
 from .settings import settings
 
 contents_dir = os.path.normpath(os.path.join(__file__, "../../contents"))
@@ -101,7 +101,7 @@ def start_observer(conn: Pipe):
     print("start observe for", target_dir)
     handler = ContentsHandler(contents_dir, conn)
     handler.set_delay(0)
-    observer = CustomObserver()
+    observer = CustomObserver(DirectoryNotFoundIgnoreEmitter)
     observer.schedule(handler, target_dir, recursive=False)
 
     def on_exit(signum, frame):
