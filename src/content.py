@@ -111,13 +111,14 @@ class ContentListSafe:
                 if target.id == src.content.id:
                     self.target.removed.pop(i)
         else:
-            print("remove")
             removed = self.remove_content(src)
             for c in removed:
                 if not any([r.id == c.content.id for r in self.target.removed]):
+                    # the content was registered and now removed from the list
                     self.target.removed.append(
                         ContentRemoved(id=c.content.id, last_modified=datetime.datetime.now(tz=datetime.timezone.utc)))
                 if src.path is None:
+                    # anyway, removed
                     if c.path is not None:
                         paths.append(c.path)
 
@@ -131,7 +132,7 @@ class ContentListSafe:
 
         total = len(self.target.contents)
         for i in range(total-1, -1, -1):
-            if self.target.contents[i].path == src.path or self.target.contents[i].orig_path == src.orig_path:
+            if (src.path is not None and self.target.contents[i].path == src.path) or self.target.contents[i].orig_path == src.orig_path:
                 removed.append(self.target.contents.pop(i))
 
         return removed

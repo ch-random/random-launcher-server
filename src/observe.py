@@ -131,6 +131,17 @@ class ContentsHandler(RegexMatchingEventHandler):
                     pass
 
     def sync_content(self, src, dest, modified_time):
+        if src is not None and not any([re.fullmatch(r, src) is not None for r in self.regexes]):
+            # something out of filter
+            # i.e. hoge._zip -> hoge.zip
+            src = None
+            modified_time = datetime.datetime.now(tz=datetime.timezone.utc)
+        if dest is not None and not any([re.fullmatch(r, dest) is not None for r in self.regexes]):
+            # something out of filter
+            # i.e. hoge.zip -> hoge._zip
+            dest = None
+            modified_time = datetime.datetime.now(tz=datetime.timezone.utc)
+
         with self.lock:
             if dest is not None:
                 try:
@@ -149,7 +160,7 @@ class ContentsHandler(RegexMatchingEventHandler):
                             with zf.open(prefix + "manifest.json", mode="r") as f:
                                 meta = json.load(f)
                             meta["id"] = self.get_uuid(meta["name"])
-                            meta["last_modified"] = modified_time.astimezone(datetime.timezone.utc)
+                            meta["last_modified"] = modified_time.astimezone(datetime.timezone.utc) if src is not None else datetime.datetime.now(tz=datetime.timezone.utc)
                             content = Content.parse_obj(meta)
                         else:
                             return
@@ -253,7 +264,7 @@ class ContentsHandler(RegexMatchingEventHandler):
         if event.is_directory:
             return
 
-        timestamp = datetime.datetime.now(tz=datetime.timezone.utc).timestamp()
+        timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
 
         self.processing[event.src_path] = timestamp
 
