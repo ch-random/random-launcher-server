@@ -681,6 +681,11 @@
               };
             }
           }
+
+          if (result["supported_platforms"].length === 0) {
+            alert("実行ファイルのパス/URLが指定されていません！");
+            return;
+          }
         }
 
         let blob;
