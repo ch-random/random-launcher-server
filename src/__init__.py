@@ -99,7 +99,7 @@ def start_observer(conn: Pipe):
         raise RuntimeError("TARGET_DIR not specified")
 
     print("start observe for", target_dir)
-    handler = ContentsHandler(contents_dir, conn)
+    handler = ContentsHandler(contents_dir, conn, max_workers=6)
     handler.set_delay(0)
     observer = CustomObserver(DirectoryNotFoundIgnoreEmitter)
     observer.schedule(handler, target_dir, recursive=False)
