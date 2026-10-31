@@ -172,8 +172,9 @@ class ContentsHandler(RegexMatchingEventHandler):
                                 targetname = os.path.relpath(info.filename, prefix)
                                 if info.is_dir():
                                     dstzf.mkdir(targetname)
-                                with dstzf.open(ZipInfo(targetname, info.date_time), mode="w") as f:
-                                    f.write(srczf.read(info))
+                                else:
+                                    with dstzf.open(ZipInfo(targetname, info.date_time), mode="w") as f:
+                                        f.write(srczf.read(info))
                         os.remove(content_path)
                     else:
                         shutil.move(content_path, final_path)
